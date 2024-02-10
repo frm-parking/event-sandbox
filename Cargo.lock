@@ -14,6 +14,7 @@ version = "0.1.0"
 dependencies = [
  "tracing",
  "tracing-subscriber",
+ "turbostate",
 ]
 
 [[package]]
@@ -166,6 +167,10 @@ dependencies = [
  "tracing-core",
  "tracing-log",
 ]
+
+[[package]]
+name = "turbostate"
+version = "0.1.0"
 
 [[package]]
 name = "unicode-ident"

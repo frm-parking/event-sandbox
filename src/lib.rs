@@ -1,8 +1,5 @@
-mod laurent;
-mod recognizer;
+#![feature(never_type)]
+
 mod sloop;
 #[cfg(test)]
 mod tests;
-
-pub(crate) use laurent::*;
-pub(crate) use recognizer::*;

@@ -1,3 +1,7 @@
+[workspace]
+resolver = "2"
+members = ["turbostate"]
+
 [package]
 name = "event-sandbox"
 version = "0.1.0"
@@ -6,3 +10,4 @@ edition = "2021"
 [dependencies]
 tracing = "0.1"
 tracing-subscriber = "0.3"
+turbostate = { path = "turbostate" }

@@ -1,117 +1,79 @@
-use crate::LaurentCtl;
-use crate::Recognizer;
-use crate::Subscriber;
-use std::rc::Rc;
 use tracing::info;
+use turbostate::Engine;
+use turbostate::Flow;
 
-/// Состояние цикла
+#[derive(Debug)]
+pub struct In;
+
 #[derive(Debug, Default)]
 pub enum State {
 	#[default]
 	Idle,
+	Jump,
 	Entry,
-	Finalizing {
-		hold: bool,
-	},
+	Finalizing,
 	WaitRelease,
 }
 
-/// Событийный цикл (цикл сессий) на въёзд
 #[derive(Debug, Default)]
-pub struct InLoop {
-	state: State,
-	recognizer: Rc<Recognizer>,
-	lanes: [bool; 7],
+pub struct Shared {
+	pub hold: bool,
+	pub rush: bool,
 }
 
-impl InLoop {
-	pub fn new(recognizer: Rc<Recognizer>) -> Self {
-		Self {
-			recognizer,
-			..Default::default()
-		}
-	}
+type InFlow = Flow<State, !>;
 
-	pub fn is_idle(&self) -> bool {
-		matches!(self.state, State::Idle)
-	}
-}
+impl Engine for In {
+	type Error = !;
+	type Event = (u32, bool);
+	type Shared = Shared;
+	type State = State;
 
-/// Подписка на изменение сигнала
-impl Subscriber for InLoop {
-	fn ein(&mut self, ctl: &mut LaurentCtl, line: u32, high: bool) {
+	fn flow(state: &Self::State, event: Self::Event, shared: &mut Self::Shared) -> InFlow {
+		use Flow::*;
 		use State::*;
 
-		// Сохранение состояния входов
-		self.lanes[line as usize] = high;
+		if let (2, high) = event {
+			shared.hold = high;
+		}
 
-		match (&self.state, line, high) {
-			(Idle, 1, true) => {
-				self.state = Entry;
-				info!("Проезд инициирован");
-				let vrms = self.recognizer.flush();
-				info!("Распознанные номера: {vrms:?}");
-				// Тут типа создаётся сессия в бд
-				info!("Сессия создана");
+		if let (1, high) = event {
+			shared.rush = high;
+		}
 
-				// Подаётся сигнал на открытие
-				for _ in 0..3 {
-					ctl.relay(1, true);
-					// thread::sleep(Duration::from_millis(100));
-					ctl.relay(1, false);
-					// thread::sleep(Duration::from_millis(500));
-				}
-
-				info!("Шлагбаум открыт");
+		let open = || -> InFlow {
+			info!("Сессия открыта");
+			info!("Шлагбаум закрыт");
+			info!("------------------");
+			if shared.rush {
+				Transition(Jump)
+			} else {
+				Transition(Idle)
 			}
-			(Entry, 3, true) => {
-				self.state = Finalizing {
-					// Занят ли на момент выезда второй радар
-					hold: self.lanes[2],
-				};
-				info!("Въезд завершается");
-			}
-			(Finalizing { hold: true }, 2, false) => {
-				info!("Второй радар освобождён");
-				self.state = Finalizing { hold: false };
-			}
-			// Открыть сессию если 3 радар был освобождён и в этот момент 2 радар тоже свободен
-			(Finalizing { hold: false }, 3, false) => {
-				info!("Проезд завершён. Сессия открыта");
-				self.state = Default::default();
-				self.lanes = Default::default();
-
-				// Если второй радар ещё не освободился, переключаем на ожидание его
-				// освобождения Иначе закрываем шлаг
-				if self.lanes[2] {
-					info!("Ожидание освобождения второго радара");
-					self.state = WaitRelease;
-				} else {
-					// Подаётся сигнал на закрытие
-					for _ in 0..3 {
-						ctl.relay(2, true);
-						// thread::sleep(Duration::from_millis(100));
-						ctl.relay(2, false);
-						// thread::sleep(Duration::from_millis(500));
-					}
-
-					self.state = Idle;
-				}
-			}
-			(WaitRelease, 2, false) => {
-				// Подаётся сигнал на закрытие
-				for _ in 0..3 {
-					ctl.relay(2, true);
-					// thread::sleep(Duration::from_millis(100));
-					ctl.relay(2, false);
-					// thread::sleep(Duration::from_millis(500));
-				}
-
-				info!("Шлагбаум закрыт");
-
-				self.state = Idle;
-			}
-			(_, line, _) => info!("Сигнал на линии [{line}] проигнорирован. Состояние не изменено"),
 		};
+
+		match (state, event) {
+			(Idle, (1, true)) | (Jump, _) => {
+				info!("Проезд инициирован");
+				info!("Шлагбаум открыт");
+				Transition(Entry)
+			}
+			(Entry, (3, true)) => {
+				info!("Проезд завершается");
+				Transition(Finalizing)
+			}
+			(Finalizing, (3, false)) => {
+				if shared.hold {
+					Transition(WaitRelease)
+				} else {
+					open()
+				}
+			}
+			(WaitRelease, (2, false)) => open(),
+			(_, (line, _)) => {
+				info!("Сигнал на линии [{line}] проигнорирован. Состояние не изменено");
+				Pass
+			}
+		}
 	}
 }
