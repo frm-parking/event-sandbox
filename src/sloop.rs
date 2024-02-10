@@ -50,7 +50,7 @@ impl Engine for In {
 	type Shared = Shared;
 	type State = State;
 
-	fn flow(state: &Self::State, event: Self::Event, shared: &mut Self::Shared) -> InFlow {
+	fn next(state: &Self::State, event: Self::Event, shared: &mut Self::Shared) -> InFlow {
 		use Event::*;
 		use Flow::*;
 		use State::*;
@@ -73,7 +73,7 @@ impl Engine for In {
 			info!("------------------");
 			if shared.rush {
 				// Немедленное переключение на указанную ветку
-				Branch(Idle, Rush)
+				Slide(Idle, Rush)
 			} else {
 				Transition(Idle)
 			}
