@@ -9,13 +9,14 @@ use std::sync::Mutex;
 pub mod err;
 
 #[derive(Debug)]
-pub enum Flow<T, E> {
+pub enum Flow<T, E, B> {
 	Pass,
 	Transition(T),
+	Branch(T, B),
 	Failure(E),
 }
 
-impl<T, E, X, R> FromResidual<Result<T, E>> for Flow<X, R>
+impl<T, E, B, X, R> FromResidual<Result<T, E>> for Flow<X, R, B>
 where
 	E: Into<R>,
 {
@@ -38,7 +39,7 @@ pub trait Engine {
 		state: &Self::State,
 		event: Self::Event,
 		shared: &mut Self::Shared,
-	) -> Flow<Self::State, Self::Error>;
+	) -> Flow<Self::State, Self::Error, Self::Event>;
 }
 
 #[derive(Debug, Default)]
@@ -116,6 +117,14 @@ impl<E: Engine> Machine<E> {
 				let mut state = self.store.state.lock().unwrap();
 				*state = new_state;
 				Ok(())
+			}
+			Flow::Branch(new_state, event) => {
+				{
+					let mut state = self.store.state.lock().unwrap();
+					*state = new_state;
+				}
+
+				self.fire(event)
 			}
 			Flow::Failure(err) => Err(err),
 		}

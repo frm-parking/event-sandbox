@@ -1,3 +1,4 @@
+use crate::sloop::Event;
 use crate::sloop::In;
 use turbostate::Machine;
 
@@ -16,7 +17,7 @@ fn in_loop_perfect_conditions() {
 		(3, false),
 	];
 
-	for event in seq {
-		machine.fire(*event).unwrap();
+	for &(line, high) in seq {
+		machine.fire(Event::Ein(line, high)).unwrap();
 	}
 }
