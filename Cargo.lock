@@ -170,7 +170,9 @@ dependencies = [
 
 [[package]]
 name = "turbostate"
-version = "0.1.0"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "864b7bdc640a2f3f55cc3ce9e8229d1a9fa9677a7a61f929a04674e4d04ef11f"
 
 [[package]]
 name = "unicode-ident"
